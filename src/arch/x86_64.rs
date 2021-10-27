@@ -306,40 +306,40 @@ pub trait CpuRegs {
 
 bitflags! {
     pub struct CpuBased: u32 {
-        const IrqWnd            = 1 << 2;
-        const TscOffset         = 1 << 3;
-        const Hlt               = 1 << 7;
-        const Invlpg            = 1 << 9;
-        const Mwait             = 1 << 10;
-        const Rdpmc             = 1 << 11;
-        const Rdtsc             = 1 << 12;
-        const Cr3Load           = 1 << 15;
-        const Cr3Store          = 1 << 16;
-        const Cr8Load           = 1 << 19;
-        const Cr8Store          = 1 << 20;
-        const TprShadow         = 1 << 21;
-        const VirtualNmiWnd     = 1 << 22;
-        const MovDr             = 1 << 23;
-        const UncondIo          = 1 << 24;
-        const IoBitmaps         = 1 << 25;
-        const Mtf               = 1 << 27;
-        const MsrBitmaps        = 1 << 28;
-        const Monitor           = 1 << 29;
-        const Pause             = 1 << 30;
-        const SecondaryControls = 1 << 31;
+        const IRQ_WND            = 1 << 2;
+        const TSC_OFFSET         = 1 << 3;
+        const HLT                = 1 << 7;
+        const INVLPG             = 1 << 9;
+        const MWAIT              = 1 << 10;
+        const RDPMC              = 1 << 11;
+        const RDTSC              = 1 << 12;
+        const CR3_LOAD           = 1 << 15;
+        const CR3_STORE          = 1 << 16;
+        const CR8_LOAD           = 1 << 19;
+        const CR8_STORE          = 1 << 20;
+        const TPR_SHADOW         = 1 << 21;
+        const VIRTUAL_NMI_WND    = 1 << 22;
+        const MOV_DR             = 1 << 23;
+        const UNCONDITIONAL_IO   = 1 << 24;
+        const IO_BITMAPS         = 1 << 25;
+        const MTF                = 1 << 27;
+        const MSR_BITMAPS        = 1 << 28;
+        const MONITOR            = 1 << 29;
+        const PAUSE              = 1 << 30;
+        const SECONDARY_CONTROLS = 1 << 31;
     }
 
     pub struct CpuBased2: u32 {
-        const UnrestrictedGuest = 1 << 7;
+        const UNRESTRICTED_GUEST = 1 << 7;
     }
 
     pub struct VmEntryControls: u32 {
-        const GuestIA32e             = 1 << 9;
-        const Smm                    = 1 << 10;
-        const DeactivateDualMonitor  = 1 << 11;
-        const LoadPerfGlobalControls = 1 << 13;
-        const LoadPat                = 1 << 14;
-        const LoadEfer               = 1 << 15;
+        const GUEST_IA32E               = 1 << 9;
+        const SMM                       = 1 << 10;
+        const DEACTIVE_DUAL_MONITOR     = 1 << 11;
+        const LOAD_PERF_GLOBAL_CONTROLS = 1 << 13;
+        const LOAD_PAT                  = 1 << 14;
+        const LOAD_EFER                 = 1 << 15;
     }
 }
 

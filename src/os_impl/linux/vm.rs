@@ -68,9 +68,7 @@ impl Vm {
 
         self.slots.insert(guest_address, mem_region);
 
-        unsafe {
-            self.vm.set_user_memory_region(mem_region)
-        }?;
+        self.vm.set_user_memory_region(mem_region)?;
 
         Ok(())
     }
