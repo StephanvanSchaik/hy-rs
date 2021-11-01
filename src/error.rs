@@ -7,6 +7,17 @@ pub enum Error {
     /// The guest address is invalid.
     #[error("invalid guest address")]
     InvalidGuestAddress,
+    /// Wraps ['std::io::Error'].
+    #[error(transparent)]
+    Io(#[from] std::io::Error),
+    /// Wraps an error that originates from any calls to the ['sysctl'] crate.
+    #[cfg(target_os = "freebsd")]
+    #[error(transparent)]
+    Sysctl(#[from] sysctl::SysctlError),
+    /// Wraps an error that originates from any calls to the ['nix'] crate.
+    #[cfg(target_os = "freebsd")]
+    #[error(transparent)]
+    Nix(#[from] nix::Error),
     /// Wraps an error that originates from any calls to the [`kvm_ioctls`] crate.
     #[cfg(target_os = "linux")]
     #[error(transparent)]

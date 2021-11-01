@@ -16,6 +16,8 @@ pub mod vm;
 pub mod vcpu;
 mod os_impl;
 
+#[cfg(target_os = "freebsd")]
+pub(crate) use os_impl::freebsd as platform;
 #[cfg(target_os = "linux")]
 pub(crate) use os_impl::linux as platform;
 #[cfg(target_os = "macos")]
