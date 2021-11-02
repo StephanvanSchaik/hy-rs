@@ -7,8 +7,6 @@ pub enum Error {
     Io(#[from] std::io::Error),
     #[error(transparent)]
     Hypervisor(#[from] hy_rs::Error),
-    #[error(transparent)]
-    Mmap(#[from] mmap_rs::error::Error),
 }
 
 fn main() -> Result<(), Error> {
