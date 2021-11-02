@@ -8,6 +8,7 @@ windows = "0.21"
 
 [dependencies]
 bitflags = "1.3"
+mmap-rs = "0.2"
 num-derive = "0.3"
 num-traits = "0.2"
 rangemap = "0.1"
@@ -25,7 +26,7 @@ kvm-ioctls = "0.10"
 windows = "0.21"
 
 [dev-dependencies]
-mmap-rs = "0.1"
+mmap-rs = "0.2"
 
 [[example]]
 name = "getting-started"

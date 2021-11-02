@@ -10,6 +10,9 @@ pub enum Error {
     /// Wraps ['std::io::Error'].
     #[error(transparent)]
     Io(#[from] std::io::Error),
+    /// Wraps ['mmap_rs::Error'].
+    #[error(transparent)]
+    Mmap(#[from] mmap_rs::error::Error),
     /// Wraps an error that originates from any calls to the ['sysctl'] crate.
     #[cfg(target_os = "freebsd")]
     #[error(transparent)]

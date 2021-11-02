@@ -5,6 +5,7 @@ use bitflags::bitflags;
 use crate::error::Error;
 use crate::platform;
 use crate::vcpu::Vcpu;
+use std::sync::{Arc, RwLock};
 
 bitflags! {
     /// The protection flags used when mapping guest physical memory.
@@ -36,23 +37,24 @@ impl VmBuilder {
     /// Builds the VM and assigns the given name and returns a [`Vm`].
     pub fn build(self, name: &str) -> Result<Vm, Error> {
         Ok(Vm {
-            inner: self.inner.build(name)?,
+            inner: Arc::new(RwLock::new(self.inner.build(name)?)),
         })
     }
 }
 
 /// The `Vm` struct represents a virtual machine. More specifically, it represents an abstraction
 /// over a number of virtual CPUs and a physical memory space.
+#[derive(Clone)]
 pub struct Vm {
     /// The internal platform-specific implementation of the [`platform::Vm`] struct.
-    pub(crate) inner: platform::Vm,
+    pub(crate) inner: Arc<RwLock<platform::Vm>>,
 }
 
 impl Vm {
     /// Create a virtual CPU with the given vCPU ID.
     pub fn create_vcpu(&mut self, id: usize) -> Result<Vcpu, Error> {
         Ok(Vcpu {
-            inner: self.inner.create_vcpu(id)?,
+            inner: self.inner.write().unwrap().create_vcpu(id)?,
         })
     }
 
@@ -70,7 +72,10 @@ impl Vm {
         size: usize,
         protection: ProtectionFlags,
     ) -> Result<(), Error> {
-        self.inner.map_physical_memory(guest_address, bytes, size, protection)
+        self.inner
+            .write()
+            .unwrap()
+            .map_physical_memory(guest_address, bytes, size, protection)
     }
 
     /// Unmaps the guest physical memory.
@@ -78,7 +83,10 @@ impl Vm {
         &mut self,
         guest_address: u64,
     ) -> Result<(), Error> {
-        self.inner.unmap_physical_memory(guest_address)
+        self.inner
+            .write()
+            .unwrap()
+            .unmap_physical_memory(guest_address)
     }
 
     /// Changes the protection flags of the guest physical memory.
@@ -87,6 +95,9 @@ impl Vm {
         guest_address: u64,
         protection: ProtectionFlags,
     ) -> Result<(), Error> {
-        self.inner.protect_physical_memory(guest_address, protection)
+        self.inner
+            .write()
+            .unwrap()
+            .protect_physical_memory(guest_address, protection)
     }
 }
