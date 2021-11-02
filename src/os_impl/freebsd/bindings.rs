@@ -10,6 +10,10 @@ const VM_RUN:            u8 = 1;
 const VM_SET_CAPABILITY: u8 = 2;
 const VM_GET_CAPABILITY: u8 = 3;
 
+const VM_MAP_MEMORY:         u8 = 10;
+const VM_GET_MEMORY_SEGMENT: u8 = 11;
+const VM_GET_GPA_PMAP:       u8 = 12;
+
 const VM_SET_REGISTER:           u8 = 20;
 const VM_GET_REGISTER:           u8 = 21;
 const VM_SET_SEGMENT_DESCRIPTOR: u8 = 22;
@@ -72,6 +76,16 @@ pub enum vm_exitcode {
 }
 
 #[repr(C)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum vm_cap_type {
+    VM_CAP_HALT_EXIT,
+    VM_CAP_MTRAP_EXIT,
+    VM_CAP_PAUSE_EXIT,
+    VM_CAP_UNRESTRICTED_GUEST,
+    VM_CAP_MAX,
+}
+
+#[repr(C)]
 pub struct vm_exit {
     pub exitcode: vm_exitcode,
     pub inst_length: i32,
@@ -83,6 +97,21 @@ pub struct vm_run {
     pub cpuid: i32,
     pub rip: u64,
     pub vm_exit: vm_exit,
+}
+
+#[repr(C)]
+pub struct vm_capability {
+    pub cpuid: i32,
+    pub captype: vm_cap_type,
+    pub capval: i32,
+    pub allcpus: i32,
+}
+
+#[repr(C)]
+pub struct vm_memory_segment {
+    pub gpa: u64,
+    pub len: usize,
+    pub wired: bool,
 }
 
 #[repr(C)]
@@ -123,6 +152,12 @@ pub fn vm_destroy(name: &str) -> Result<(), Error> {
 }
 
 ioctl_readwrite!(vm_run, VM_MAGIC, VM_RUN, vm_run);
+ioctl_write_ptr!(vm_set_capability, VM_SET_CAPABILITY, vm_capability);
+ioctl_readwrite!(vm_get_capability, VM_GET_CAPABILITY, vm_capability);
+
+ioctl_readwrite!(vm_map_memory, VM_MAP_MEMORY, vm_memory_segment);
+ioctl_readwrite!(vm_get_memory_segment, VM_GET_MEMORY_SEGMENT, vm_memory_segment);
+
 ioctl_write_ptr!(vm_set_register, VM_MAGIC, VM_SET_REGISTER, vm_register);
 ioctl_readwrite!(vm_get_register, VM_MAGIC, VM_GET_REGISTER, vm_register);
 ioctl_write_ptr!(vm_set_segment_descriptor, VM_MAGIC, VM_SET_SEGMENT_DESCRIPTOR, vm_seg_desc);
