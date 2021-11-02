@@ -92,6 +92,12 @@ impl Vm {
     ///
     /// This function is `unsafe`. You must ensure that `bytes` and `size` span a region of virtual
     /// memory that is valid. For a safe version, see [`Vm::allocate_physical_memory`] instead.
+    ///
+    /// This function is not supported on FreeBSD due to underlying differences in the memory
+    /// management API provided by FreeBSD. While Microsoft Windows, Linux and Mac OS X allow us to
+    /// map in virtual memory, and then map that directly into our guest physical address space,
+    /// FreeBSD instead allocates guest physical memory for us and allows us to map that into our
+    /// virtual address space.
     pub unsafe fn map_physical_memory(
         &mut self,
         guest_address: u64,
