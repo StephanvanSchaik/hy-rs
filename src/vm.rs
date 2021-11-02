@@ -33,10 +33,10 @@ impl VmBuilder {
         })
     }
 
-    /// Builds the VM and returns a [`Vm`].
-    pub fn build(self) -> Result<Vm, Error> {
+    /// Builds the VM and assigns the given name and returns a [`Vm`].
+    pub fn build(self, name: &str) -> Result<Vm, Error> {
         Ok(Vm {
-            inner: self.inner.build()?,
+            inner: self.inner.build(name)?,
         })
     }
 }

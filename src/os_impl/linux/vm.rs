@@ -14,7 +14,7 @@ impl VmBuilder {
         Ok(self)
     }
 
-    pub fn build(self) -> Result<Vm, Error> {
+    pub fn build(self, _name: &str) -> Result<Vm, Error> {
         self.vm.set_tss_address(0xfffb_d000)?;
 
         Ok(Vm {

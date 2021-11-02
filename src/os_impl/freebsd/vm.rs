@@ -13,8 +13,7 @@ impl VmBuilder {
         Ok(self)
     }
 
-    pub fn build(self) -> Result<Vm, Error> {
-        let name = "test";
+    pub fn build(self, name: &str) -> Result<Vm, Error> {
         vm_create(name)?;
 
         let mut path = PathBuf::from("/dev/vmm");

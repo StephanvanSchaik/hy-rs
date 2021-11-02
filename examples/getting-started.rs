@@ -20,7 +20,7 @@ fn main() -> Result<(), Error> {
     let mut vm = hypervisor
         .build_vm()?
         .with_vcpu_count(1)?
-        .build()?;
+        .build("example")?;
 
     // Create the vCPU.
     let mut vcpu = vm.create_vcpu(0)?;

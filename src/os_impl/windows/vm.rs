@@ -37,7 +37,7 @@ impl VmBuilder {
         Ok(self)
     }
 
-    pub fn build(self) -> Result<Vm, Error> {
+    pub fn build(self, _name: &str) -> Result<Vm, Error> {
         unsafe {
             WHvSetupPartition(self.handle.0)
         }?;
