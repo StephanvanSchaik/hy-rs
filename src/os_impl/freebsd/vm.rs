@@ -1,6 +1,9 @@
 use crate::error::Error;
+use crate::mmap::MmapMut;
 use crate::vm::ProtectionFlags;
+use mmap_rs::MmapOptions;
 use std::fs::{File, OpenOptions};
+use std::os::unix::io::AsRawFd;
 use std::path::PathBuf;
 
 use super::bindings::*;
@@ -44,6 +47,34 @@ impl Vm {
             cpuid: id as i32,
             file: self.file.try_clone()?,
             rip: 0,
+        })
+    }
+
+    pub fn allocate_physical_memory(
+        &mut self,
+        guest_address: u64,
+        size: usize,
+        protection: ProtectionFlags,
+    ) -> Result<MmapMut, Error> {
+        let args = vm_memory_segment {
+            gpa: guest_address,
+            len: size,
+            wired: false,
+        };
+
+        unsafe {
+            vm_map_memory(self.file.as_raw_fd(), &args)
+        }?;
+
+        let mut inner = MmapOptions::new()
+            .with_size(size)
+            .with_file(Some((self.file.try_clone()?, guest_address)))
+            .map_mut()?;
+
+        Ok(MmapMut {
+            vm: None,
+            inner: Some(inner),
+            guest_address,
         })
     }
 
