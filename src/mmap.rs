@@ -275,18 +275,18 @@ macro_rules! mmap_impl {
 
 /// Represents an inaccessible memory mapping to guest physical memory.
 pub struct MmapNone {
-    vm: Option<Vm>,
-    inner: Option<mmap_rs:: MmapNone>,
-    guest_address: u64,
+    pub(crate) vm: Option<Vm>,
+    pub(crate) inner: Option<mmap_rs:: MmapNone>,
+    pub(crate) guest_address: u64,
 }
 
 mmap_impl!(MmapNone);
 
 /// Represents an immutable memory mapping to guest physical memory.
 pub struct Mmap {
-    vm: Option<Vm>,
-    inner: Option<mmap_rs::Mmap>,
-    guest_address: u64,
+    pub(crate) vm: Option<Vm>,
+    pub(crate) inner: Option<mmap_rs::Mmap>,
+    pub(crate) guest_address: u64,
 }
 
 mmap_impl!(Mmap);
@@ -311,9 +311,9 @@ impl AsRef<[u8]> for Mmap {
 
 /// Represents a mutable memory mapping to guest physical memory.
 pub struct MmapMut {
-    vm: Option<Vm>,
-    inner: Option<mmap_rs::MmapMut>,
-    guest_address: u64,
+    pub(crate) vm: Option<Vm>,
+    pub(crate) inner: Option<mmap_rs::MmapMut>,
+    pub(crate) guest_address: u64,
 }
 
 mmap_impl!(MmapMut);

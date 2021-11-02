@@ -58,13 +58,33 @@ impl Vm {
         })
     }
 
+    /// Allocates guest physical memory into the VM's address space at the given guest address with
+    /// the given size. The size must be aligned to the minimal page size. In addition, the
+    /// protection of the memory mapping is set to the given protection. This protection affects
+    /// how the guest VM can or cannot access the guest physical memory.
+    pub fn allocate_physical_memory(
+        &mut self,
+        guest_address: u64,
+        size: usize,
+        protection: ProtectionFlags,
+    ) -> Result<MmapMut, Error> {
+        let mut mmap = self.inner
+            .write()
+            .unwrap()
+            .allocate_physical_memory(guest_address, size, protection)?;
+
+        mmap.vm = Some(self.clone());
+
+        Ok(mmap)
+    }
+
     /// Maps guest physical memory into the VM's address space. More specifically this function
     /// takes a virtual address as `bytes`, resolves it to the host physical address and maps it to
     /// the specified guest physical address `guest_address` with the specified protection
     /// [`ProtectionFlags`] and the specified `size`, which must be page size aligned.
     ///
     /// This function is `unsafe`. You must ensure that `bytes` and `size` span a region of virtual
-    /// memory that is valid.
+    /// memory that is valid. For a safe version, see [`Vm::allocate_physical_memory`] instead.
     pub unsafe fn map_physical_memory(
         &mut self,
         guest_address: u64,

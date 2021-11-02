@@ -1,5 +1,7 @@
 use crate::error::Error;
+use crate::mmap::MmapMut;
 use crate::vm::ProtectionFlags;
+use mmap_rs::MmapOptions;
 use std::collections::HashMap;
 use std::ops::Deref;
 use std::sync::Arc;
@@ -72,6 +74,32 @@ impl Vm {
         Ok(Vcpu {
             handle: self.handle.clone(),
             id: id as u32,
+        })
+    }
+
+    pub fn allocate_physical_memory(
+        &mut self,
+        guest_address: u64,
+        size: usize,
+        protection: ProtectionFlags,
+    ) -> Result<MmapMut, Error> {
+        let mut inner = MmapOptions::new()
+            .with_size(size)
+            .map_mut()?;
+
+        unsafe {
+            self.map_physical_memory(
+                guest_address,
+                inner.as_mut_ptr() as *mut std::ffi::c_void,
+                inner.size(),
+                protection,
+            )
+        }?;
+
+        Ok(MmapMut {
+            vm: None,
+            inner: Some(inner),
+            guest_address,
         })
     }
 

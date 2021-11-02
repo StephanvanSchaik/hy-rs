@@ -25,9 +25,6 @@ kvm-ioctls = "0.10"
 [target.'cfg(target_os = "windows")'.dependencies]
 windows = "0.21"
 
-[dev-dependencies]
-mmap-rs = "0.2"
-
 [[example]]
 name = "getting-started"
 path = "examples/getting-started.rs"
