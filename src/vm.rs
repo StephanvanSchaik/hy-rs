@@ -3,12 +3,19 @@
 
 use bitflags::bitflags;
 use crate::error::Error;
+use crate::mmap::MmapMut;
 use crate::platform;
 use crate::vcpu::Vcpu;
 use std::sync::{Arc, RwLock};
 
 bitflags! {
     /// The protection flags used when mapping guest physical memory.
+    ///
+    /// Not all platforms support the full set of protection flags:
+    ///  * Linux does not support the executable bit, which means that guest physical memory is
+    ///    always executable.
+    ///  * FreeBSD does not support any of the protection flags, which means that guest physical
+    ///    memory is always readable, writable and executable.
     pub struct ProtectionFlags: u32 {
         /// The guest VM is allowed to read from the physical memory.
         const READ    = 1 << 0;
