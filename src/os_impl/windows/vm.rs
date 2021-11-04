@@ -1,7 +1,7 @@
 use crate::error::Error;
-use crate::mmap::MmapMut;
 use crate::vm::ProtectionFlags;
-use mmap_rs::MmapOptions;
+use mmap_rs::{MmapMut, MmapOptions};
+use rangemap::RangeMap;
 use std::collections::HashMap;
 use std::ops::Deref;
 use std::sync::Arc;
@@ -46,19 +46,16 @@ impl VmBuilder {
 
         Ok(Vm {
             handle: Arc::new(self.handle),
-            regions: HashMap::new(),
+            segments: HashMap::new(),
+            physical_ranges: RangeMap::new(),
         })
     }
 }
 
-struct MemoryRegion {
-    bytes: *mut std::ffi::c_void,
-    size: u64,
-}
-
 pub struct Vm {
-    pub(crate) handle: Rc<PartitionHandle>,
-    regions: HashMap<u64, MemoryRegion>,
+    pub(crate) handle: Arc<PartitionHandle>,
+    pub(crate) segments: HashMap<u64, MmapMut>,
+    pub(crate) physical_ranges: RangeMap<u64, u64>,
 }
 
 impl Vm {
@@ -82,32 +79,24 @@ impl Vm {
         guest_address: u64,
         size: usize,
         protection: ProtectionFlags,
-    ) -> Result<MmapMut, Error> {
-        let mut inner = MmapOptions::new()
+    ) -> Result<(), Error> {
+        let mapping = MmapOptions::new()
             .with_size(size)
             .map_mut()?;
 
-        unsafe {
-            self.map_physical_memory(
-                guest_address,
-                inner.as_mut_ptr() as *mut std::ffi::c_void,
-                inner.size(),
-                protection,
-            )
-        }?;
-
-        Ok(MmapMut {
-            vm: None,
-            inner: Some(inner),
+        self.map_physical_memory(
             guest_address,
-        })
+            mapping,
+            protection,
+        )?;
+
+        Ok(())
     }
 
-    pub unsafe fn map_physical_memory(
+    pub fn map_physical_memory(
         &mut self,
         guest_address: u64,
-        bytes: *mut std::ffi::c_void,
-        size: usize,
+        mut mapping: MmapMut,
         protection: ProtectionFlags,
     ) -> Result<(), Error> {
         let mut flags = WHvMapGpaRangeFlagNone;
@@ -124,20 +113,20 @@ impl Vm {
             flags |= WHvMapGpaRangeFlagExecute;
         }
 
+        let size = mapping.len() as u64;
+
         unsafe {
             WHvMapGpaRange(
                 self.handle.deref().0,
-                bytes,
+                mapping.as_mut_ptr() as *mut std::ffi::c_void,
                 guest_address,
-                size as u64,
+                size,
                 flags,
             )
         }?;
 
-        self.regions.insert(guest_address, MemoryRegion {
-            bytes,
-            size: size as u64,
-        });
+        self.segments.insert(guest_address, mapping);
+        self.physical_ranges.insert(guest_address..guest_address + size, guest_address);
 
         Ok(())
     }
@@ -146,18 +135,29 @@ impl Vm {
         &mut self,
         guest_address: u64,
     ) -> Result<(), Error> {
-        let region = match self.regions.remove(&guest_address) {
-            Some(region) => region,
+        // Look up the base guest address.
+        let range = match self.physical_ranges.get_key_value(&guest_address) {
+            Some((range, _)) => range.clone(),
+            _ => return Err(Error::InvalidGuestAddress),
+        };
+
+        // Look up the segment size.
+        let size = match self.segments.get(&range.start) {
+            Some(segment) => segment.len() as u64,
             _ => return Err(Error::InvalidGuestAddress),
         };
 
         unsafe {
             WHvUnmapGpaRange(
                 self.handle.deref().0,
-                guest_address,
-                region.size,
+                range.start,
+                size,
             )
         }?;
+
+        // Remove the physical address range and segment.
+        self.segments.remove(&range.start);
+        self.physical_ranges.remove(range);
 
         Ok(())
     }
@@ -167,10 +167,18 @@ impl Vm {
         guest_address: u64,
         protection: ProtectionFlags,
     ) -> Result<(), Error> {
-        let region = match self.regions.get(&guest_address) {
-            Some(region) => region,
+        // Look up the base guest address.
+        let range = match self.physical_ranges.get_key_value(&guest_address) {
+            Some((range, _)) => range.clone(),
             _ => return Err(Error::InvalidGuestAddress),
         };
+
+        // Look up the segment size.
+        let mapping = match self.segments.get_mut(&range.start) {
+            Some(segment) => segment,
+            _ => return Err(Error::InvalidGuestAddress),
+        };
+        let size = mapping.len() as u64;
 
         let mut flags = WHvMapGpaRangeFlagNone;
 
@@ -189,21 +197,73 @@ impl Vm {
         unsafe {
             WHvUnmapGpaRange(
                 self.handle.deref().0,
-                guest_address,
-                region.size,
+                range.start,
+                size,
             )
         }?;
 
         unsafe {
             WHvMapGpaRange(
                 self.handle.deref().0,
-                region.bytes,
-                guest_address,
-                region.size,
+                mapping.as_mut_ptr() as *mut std::ffi::c_void,
+                range.start,
+                size,
                 flags,
             )
         }?;
 
         Ok(())
+    }
+
+    pub fn read_physical_memory(
+        &self,
+        bytes: &mut [u8],
+        guest_address: u64,
+    ) -> Result<usize, Error> {
+        // Look up the base guest address.
+        let range = match self.physical_ranges.get_key_value(&guest_address) {
+            Some((range, _)) => range.clone(),
+            _ => return Err(Error::InvalidGuestAddress),
+        };
+
+        // Look up the segment.
+        let segment = match self.segments.get(&range.start) {
+            Some(segment) => segment,
+            _ => return Err(Error::InvalidGuestAddress),
+        };
+
+        // Calculate the offset and size.
+        let offset = (guest_address - range.start) as usize;
+        let size = ((range.end - guest_address) as usize).min(bytes.len());
+
+        bytes[..size].copy_from_slice(&segment[offset..offset + size]);
+
+        Ok(size)
+    }
+
+    pub fn write_physical_memory(
+        &mut self,
+        guest_address: u64,
+        bytes: &[u8],
+    ) -> Result<usize, Error> {
+        // Look up the base guest address.
+        let range = match self.physical_ranges.get_key_value(&guest_address) {
+            Some((range, _)) => range.clone(),
+            _ => return Err(Error::InvalidGuestAddress),
+        };
+
+        // Look up the segment.
+        let segment = match self.segments.get_mut(&range.start) {
+            Some(segment) => segment,
+            _ => return Err(Error::InvalidGuestAddress),
+        };
+
+        // Calculate the offset and size.
+        let offset = (guest_address - range.start) as usize;
+        let size = ((range.end - guest_address) as usize).min(bytes.len());
+
+        segment[offset..offset + size].copy_from_slice(&bytes[..size]);
+
+        Ok(size)
     }
 }

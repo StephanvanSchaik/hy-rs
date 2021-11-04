@@ -1,9 +1,9 @@
 use crate::error::Error;
-use crate::mmap::MmapMut;
 use crate::vm::ProtectionFlags;
 use kvm_bindings::{KVM_MEM_READONLY, kvm_userspace_memory_region};
 use kvm_ioctls::VmFd;
-use mmap_rs::MmapOptions;
+use mmap_rs::{MmapMut, MmapOptions};
+use rangemap::RangeMap;
 use std::collections::HashMap;
 use super::vcpu::Vcpu;
 
@@ -21,15 +21,22 @@ impl VmBuilder {
 
         Ok(Vm {
             vm: self.vm,
-            slots: HashMap::new(),
+            segments: HashMap::new(),
+            physical_ranges: RangeMap::new(),
             available_slots: vec![],
         })
     }
 }
 
+pub struct Segment {
+    mapping: MmapMut,
+    region: kvm_userspace_memory_region,
+}
+
 pub struct Vm {
     pub(crate) vm: VmFd,
-    pub(crate) slots: HashMap<u64, kvm_userspace_memory_region>,
+    pub(crate) segments: HashMap<u64, Segment>,
+    pub(crate) physical_ranges: RangeMap<u64, u64>,
     pub(crate) available_slots: Vec<u32>,
 }
 
@@ -47,32 +54,24 @@ impl Vm {
         guest_address: u64,
         size: usize,
         protection: ProtectionFlags,
-    ) -> Result<MmapMut, Error> {
-        let mut inner = MmapOptions::new()
+    ) -> Result<(), Error> {
+        let mapping = MmapOptions::new()
             .with_size(size)
             .map_mut()?;
 
-        unsafe {
-            self.map_physical_memory(
-                guest_address,
-                inner.as_mut_ptr() as *mut std::ffi::c_void,
-                inner.size(),
-                protection,
-            )
-        }?;
-
-        Ok(MmapMut {
-            vm: None,
-            inner: Some(inner),
+        self.map_physical_memory(
             guest_address,
-        })
+            mapping,
+            protection,
+        )?;
+
+        Ok(())
     }
 
-    pub unsafe fn map_physical_memory(
+    pub fn map_physical_memory(
         &mut self,
         guest_address: u64,
-        bytes: *mut std::ffi::c_void,
-        size: usize,
+        mapping: MmapMut,
         protection: ProtectionFlags,
     ) -> Result<(), Error> {
         let mut flags = 0;
@@ -83,20 +82,31 @@ impl Vm {
 
         let slot = match self.available_slots.pop() {
             Some(slot) => slot,
-            _ => self.slots.len() as u32,
+            _ => self.segments.len() as u32,
         };
 
-        let mem_region = kvm_userspace_memory_region {
-            slot,
-            guest_phys_addr: guest_address,
-            userspace_addr: bytes as u64,
-            memory_size: size as u64,
-            flags,
+        let userspace_addr = mapping.as_ptr()
+            as *const std::ffi::c_void
+            as usize
+            as u64;
+        let memory_size = mapping.len() as u64;
+        let segment = Segment {
+            mapping,
+            region: kvm_userspace_memory_region {
+                slot,
+                guest_phys_addr: guest_address,
+                userspace_addr,
+                memory_size,
+                flags,
+            },
         };
 
-        self.slots.insert(guest_address, mem_region);
+        unsafe {
+            self.vm.set_user_memory_region(segment.region)
+        }?;
 
-        self.vm.set_user_memory_region(mem_region)?;
+        self.segments.insert(guest_address, segment);
+        self.physical_ranges.insert(guest_address..guest_address + memory_size, guest_address);
 
         Ok(())
     }
@@ -105,16 +115,32 @@ impl Vm {
         &mut self,
         guest_address: u64,
     ) -> Result<(), Error> {
-        let mut mem_region = match self.slots.remove(&guest_address) {
-            Some(mem_region) => mem_region,
+        // Look up the base guest address.
+        let range = match self.physical_ranges.get_key_value(&guest_address) {
+            Some((range, _)) => range.clone(),
             _ => return Err(Error::InvalidGuestAddress),
         };
 
-        mem_region.memory_size = 0;
+        // Look up the segment and clone the region.
+        let mut region = match self.segments.get(&range.start) {
+            Some(segment) => segment.region.clone(),
+            _ => return Err(Error::InvalidGuestAddress),
+        };
+
+        // Unmap the guest physical memory from the VM.
+        region.memory_size = 0;
+        let slot = region.slot;
 
         unsafe {
-            self.vm.set_user_memory_region(mem_region)
+            self.vm.set_user_memory_region(region)
         }?;
+
+        // Remove the physical address range and segment.
+        self.segments.remove(&range.start);
+        self.physical_ranges.remove(range);
+
+        // Mark the slot as available again.
+        self.available_slots.push(slot);
 
         Ok(())
     }
@@ -124,21 +150,80 @@ impl Vm {
         guest_address: u64,
         protection: ProtectionFlags,
     ) -> Result<(), Error> {
-        let mem_region = match self.slots.get_mut(&guest_address) {
-            Some(mem_region) => mem_region,
+        // Look up the base guest address.
+        let range = match self.physical_ranges.get_key_value(&guest_address) {
+            Some((range, _)) => range.clone(),
+            _ => return Err(Error::InvalidGuestAddress),
+        };
+
+        // Look up the segment.
+        let segment = match self.segments.get_mut(&range.start) {
+            Some(segment) => segment,
             _ => return Err(Error::InvalidGuestAddress),
         };
 
         if protection.contains(ProtectionFlags::WRITE) {
-            mem_region.flags &= !KVM_MEM_READONLY;
+            segment.region.flags &= !KVM_MEM_READONLY;
         } else {
-            mem_region.flags |= KVM_MEM_READONLY;
+            segment.region.flags |= KVM_MEM_READONLY;
         }
 
         unsafe {
-            self.vm.set_user_memory_region(mem_region.clone())
+            self.vm.set_user_memory_region(segment.region)
         }?;
 
         Ok(())
+    }
+
+    pub fn read_physical_memory(
+        &self,
+        bytes: &mut [u8],
+        guest_address: u64,
+    ) -> Result<usize, Error> {
+        // Look up the base guest address.
+        let range = match self.physical_ranges.get_key_value(&guest_address) {
+            Some((range, _)) => range.clone(),
+            _ => return Err(Error::InvalidGuestAddress),
+        };
+
+        // Look up the segment.
+        let segment = match self.segments.get(&range.start) {
+            Some(segment) => segment,
+            _ => return Err(Error::InvalidGuestAddress),
+        };
+
+        // Calculate the offset and size.
+        let offset = (guest_address - range.start) as usize;
+        let size = ((range.end - guest_address) as usize).min(bytes.len());
+
+        bytes[..size].copy_from_slice(&segment.mapping[offset..offset + size]);
+
+        Ok(size)
+    }
+
+    pub fn write_physical_memory(
+        &mut self,
+        guest_address: u64,
+        bytes: &[u8],
+    ) -> Result<usize, Error> {
+        // Look up the base guest address.
+        let range = match self.physical_ranges.get_key_value(&guest_address) {
+            Some((range, _)) => range.clone(),
+            _ => return Err(Error::InvalidGuestAddress),
+        };
+
+        // Look up the segment.
+        let segment = match self.segments.get_mut(&range.start) {
+            Some(segment) => segment,
+            _ => return Err(Error::InvalidGuestAddress),
+        };
+
+        // Calculate the offset and size.
+        let offset = (guest_address - range.start) as usize;
+        let size = ((range.end - guest_address) as usize).min(bytes.len());
+
+        segment.mapping[offset..offset + size].copy_from_slice(&bytes[..size]);
+
+        Ok(size)
     }
 }

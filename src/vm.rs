@@ -3,9 +3,9 @@
 
 use bitflags::bitflags;
 use crate::error::Error;
-use crate::mmap::MmapMut;
 use crate::platform;
 use crate::vcpu::Vcpu;
+use mmap_rs::MmapMut;
 use std::sync::{Arc, RwLock};
 
 bitflags! {
@@ -74,24 +74,17 @@ impl Vm {
         guest_address: u64,
         size: usize,
         protection: ProtectionFlags,
-    ) -> Result<MmapMut, Error> {
-        let mut mmap = self.inner
+    ) -> Result<(), Error> {
+        self.inner
             .write()
             .unwrap()
-            .allocate_physical_memory(guest_address, size, protection)?;
-
-        mmap.vm = Some(self.clone());
-
-        Ok(mmap)
+            .allocate_physical_memory(guest_address, size, protection)
     }
 
     /// Maps guest physical memory into the VM's address space. More specifically this function
     /// takes a virtual address as `bytes`, resolves it to the host physical address and maps it to
     /// the specified guest physical address `guest_address` with the specified protection
     /// [`ProtectionFlags`] and the specified `size`, which must be page size aligned.
-    ///
-    /// This function is `unsafe`. You must ensure that `bytes` and `size` span a region of virtual
-    /// memory that is valid. For a safe version, see [`Vm::allocate_physical_memory`] instead.
     ///
     /// This function is not supported on FreeBSD due to underlying differences in the memory
     /// management API provided by FreeBSD. While Microsoft Windows, Linux and Mac OS X allow us to
@@ -101,14 +94,13 @@ impl Vm {
     pub unsafe fn map_physical_memory(
         &mut self,
         guest_address: u64,
-        bytes: *mut std::ffi::c_void,
-        size: usize,
+        mapping: MmapMut,
         protection: ProtectionFlags,
     ) -> Result<(), Error> {
         self.inner
             .write()
             .unwrap()
-            .map_physical_memory(guest_address, bytes, size, protection)
+            .map_physical_memory(guest_address, mapping, protection)
     }
 
     /// Unmaps the guest physical memory.
@@ -132,5 +124,29 @@ impl Vm {
             .write()
             .unwrap()
             .protect_physical_memory(guest_address, protection)
+    }
+
+    /// Reads the bytes starting at the guest address into the given bytes buffer.
+    pub fn read_physical_memory(
+        &mut self,
+        bytes: &mut [u8],
+        guest_address: u64,
+    ) -> Result<usize, Error> {
+        self.inner
+            .read()
+            .unwrap()
+            .read_physical_memory(bytes, guest_address)
+    }
+
+    /// Writes the bytes from the given bytes buffer to the bytes starting at guest address.
+    pub fn write_physical_memory(
+        &mut self,
+        guest_address: u64,
+        bytes: &[u8],
+    ) -> Result<usize, Error> {
+        self.inner
+            .write()
+            .unwrap()
+            .write_physical_memory(guest_address, bytes)
     }
 }
