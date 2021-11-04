@@ -473,7 +473,7 @@ pub enum VmxReason {
     Mtf               = 37,
     Monitor           = 39,
     Pause             = 40,
-    VmEntryMc        = 41,
+    VmEntryMc         = 41,
     TprThreshold      = 43,
     ApicAccess        = 44,
     VirtualizedEoi    = 45,
