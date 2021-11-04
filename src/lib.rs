@@ -12,7 +12,6 @@
 pub mod arch;
 pub mod error;
 pub mod hypervisor;
-pub mod mmap;
 pub mod vm;
 pub mod vcpu;
 mod os_impl;
