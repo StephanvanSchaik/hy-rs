@@ -5,8 +5,115 @@ use bitflags::bitflags;
 use crate::error::Error;
 use crate::platform;
 use crate::vcpu::Vcpu;
+use intrusive_collections::intrusive_adapter;
+use intrusive_collections::{SinglyLinkedListLink, SinglyLinkedList};
 use mmap_rs::MmapMut;
+use rangemap::RangeMap;
+use std::collections::HashMap;
+use std::ops::Range;
 use std::sync::{Arc, RwLock};
+
+/// Represents the metadata of a physical page of the guest VM.
+pub struct PageInfo {
+    /// The link used to add this page to the free list.
+    link: SinglyLinkedListLink,
+}
+
+intrusive_adapter!(PageInfoAdapter<'a> = &'a PageInfo: PageInfo { link: SinglyLinkedListLink });
+
+/// The page allocator used to manage the physical pages of the guest VM.
+pub struct PageAllocator<'a> {
+    /// A singly linked list containing the set of free pages.
+    free_list: SinglyLinkedList<PageInfoAdapter<'a>>,
+    /// A mapping of the page info ranges to the corresponding base guest physical address.
+    page_info_ranges: RangeMap<usize, u64>,
+    /// A mapping of the physical address ranges to the corresponding base guest physical address.
+    physical_ranges: RangeMap<u64, u64>,
+    /// The memory segments.
+    segments: HashMap<u64, Box<[PageInfo]>>,
+}
+
+impl<'a> Drop for PageAllocator<'a> {
+    fn drop(&mut self) {
+        self.free_list.fast_clear();
+    }
+}
+
+impl<'a> PageAllocator<'a> {
+    /// Sets up the page allocator.
+    pub fn new() -> Self {
+        Self {
+            free_list: SinglyLinkedList::new(PageInfoAdapter::new()),
+            page_info_ranges: RangeMap::new(),
+            physical_ranges: RangeMap::new(),
+            segments: HashMap::new(),
+        }
+    }
+
+    /// Allocates a physical page.
+    pub fn alloc_page(&mut self) -> Option<u64> {
+        let page_info = match self.free_list.pop_front() {
+            Some(page_info) => page_info,
+            _ => return None,
+        };
+
+        let offset = page_info
+            as *const PageInfo
+            as *const std::ffi::c_void
+            as usize;
+
+        let (range, guest_address) = self.page_info_ranges
+            .get_key_value(&offset)
+            .expect("page info range must have been present");
+
+        let index = (offset - range.start) / std::mem::size_of::<PageInfo>();
+        let guest_address = *guest_address + (index as u64) * 4096;
+
+        Some(guest_address)
+    }
+
+    /// Frees the given physical page.
+    pub fn free_page(&mut self, phys_addr: u64) {
+        let (range, _) = self.physical_ranges
+            .get_key_value(&phys_addr)
+            .expect("physical range must have been present");
+        let index = ((phys_addr - range.start) / 4096) as usize;
+
+        let segment = self.segments
+            .get(&range.start)
+            .expect("segment must have been present");
+
+        let page_info = unsafe { &*segment.as_ptr().offset(index as isize) };
+
+        self.free_list.push_front(page_info);
+    }
+
+    pub fn add_range(&mut self, range: Range<u64>) -> Result<(), Error> {
+        let mut page_infos = vec![];
+
+        for _ in range.clone().step_by(4096) {
+            page_infos.push(PageInfo {
+                link: SinglyLinkedListLink::new(),
+            });
+        }
+
+        let page_infos = page_infos.into_boxed_slice();
+
+        for index in 0..page_infos.len() {
+            let page_info = unsafe { &*page_infos.as_ptr().offset(index as isize) };
+            self.free_list.push_front(page_info);
+        }
+
+        let base = page_infos.as_ptr() as *const PageInfo as usize;
+        let end  = base + page_infos.len() * std::mem::size_of::<PageInfo>();
+
+        self.page_info_ranges.insert(base..end, range.start);
+        self.physical_ranges.insert(range.clone(), range.start);
+        self.segments.insert(range.start, page_infos);
+
+        Ok(())
+    }
+}
 
 bitflags! {
     /// The protection flags used when mapping guest physical memory.
@@ -45,6 +152,7 @@ impl VmBuilder {
     pub fn build(self, name: &str) -> Result<Vm, Error> {
         Ok(Vm {
             inner: Arc::new(RwLock::new(self.inner.build(name)?)),
+            page_allocator: Arc::new(RwLock::new(PageAllocator::new())),
         })
     }
 }
@@ -52,12 +160,14 @@ impl VmBuilder {
 /// The `Vm` struct represents a virtual machine. More specifically, it represents an abstraction
 /// over a number of virtual CPUs and a physical memory space.
 #[derive(Clone)]
-pub struct Vm {
+pub struct Vm<'a> {
     /// The internal platform-specific implementation of the [`platform::Vm`] struct.
     pub(crate) inner: Arc<RwLock<platform::Vm>>,
+    /// The page allocator.
+    pub(crate) page_allocator: Arc<RwLock<PageAllocator<'a>>>,
 }
 
-impl Vm {
+impl<'a> Vm<'a> {
     /// Create a virtual CPU with the given vCPU ID.
     pub fn create_vcpu(&mut self, id: usize) -> Result<Vcpu, Error> {
         Ok(Vcpu {
@@ -78,7 +188,14 @@ impl Vm {
         self.inner
             .write()
             .unwrap()
-            .allocate_physical_memory(guest_address, size, protection)
+            .allocate_physical_memory(guest_address, size, protection)?;
+
+        self.page_allocator
+            .write()
+            .unwrap()
+            .add_range(guest_address..guest_address + size as u64)?;
+
+        Ok(())
     }
 
     /// Maps guest physical memory into the VM's address space. More specifically this function
