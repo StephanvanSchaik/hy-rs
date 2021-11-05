@@ -8,6 +8,7 @@ use crate::vcpu::Vcpu;
 use intrusive_collections::intrusive_adapter;
 use intrusive_collections::{SinglyLinkedListLink, SinglyLinkedList};
 use mmap_rs::MmapMut;
+pub use page_walker::address_space::PageTableMapper;
 use rangemap::RangeMap;
 use std::collections::HashMap;
 use std::ops::Range;
@@ -245,7 +246,7 @@ impl<'a> Vm<'a> {
 
     /// Reads the bytes starting at the guest address into the given bytes buffer.
     pub fn read_physical_memory(
-        &mut self,
+        &self,
         bytes: &mut [u8],
         guest_address: u64,
     ) -> Result<usize, Error> {
@@ -265,5 +266,50 @@ impl<'a> Vm<'a> {
             .write()
             .unwrap()
             .write_physical_memory(guest_address, bytes)
+    }
+}
+
+impl<'a> page_walker::PageTableMapper<u64, Error> for Vm<'a> {
+    const PTE_NOT_FOUND:    Error = Error::PteNotFound;
+    const PAGE_NOT_PRESENT: Error = Error::PageNotPresent;
+    const NOT_IMPLEMENTED:  Error = Error::NotImplemented;
+
+    fn read_pte(&self, phys_addr: u64) -> Result<u64, Error> {
+        let mut bytes = [0u8; 8];
+
+        self.read_physical_memory(&mut bytes, phys_addr)?;
+
+        Ok(u64::from_ne_bytes(bytes))
+    }
+
+    fn write_pte(&mut self, phys_addr: u64, value: u64) -> Result<(), Error> {
+        let bytes = u64::to_ne_bytes(value);
+
+        self.write_physical_memory(phys_addr, &bytes)?;
+
+        Ok(())
+    }
+
+    fn read_bytes(&self, bytes: &mut [u8], phys_addr: u64) -> Result<usize, Error> {
+        self.read_physical_memory(bytes, phys_addr)
+    }
+
+    fn write_bytes(&mut self, phys_addr: u64, bytes: &[u8]) -> Result<usize, Error> {
+        self.write_physical_memory(phys_addr, bytes)
+    }
+
+    fn alloc_page(&mut self) -> Result<u64, Error> {
+        self.page_allocator
+            .write()
+            .unwrap()
+            .alloc_page()
+            .ok_or(Error::OutOfMemory)
+    }
+
+    fn free_page(&mut self, phys_addr: u64) {
+        self.page_allocator
+            .write()
+            .unwrap()
+            .free_page(phys_addr);
     }
 }

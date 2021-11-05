@@ -12,6 +12,7 @@ intrusive-collections = "0.9"
 mmap-rs = "0.2"
 num-derive = "0.3"
 num-traits = "0.2"
+page-walker = "0.3"
 rangemap = "0.1"
 thiserror = "1.0"
 

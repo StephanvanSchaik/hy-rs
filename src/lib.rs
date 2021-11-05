@@ -25,6 +25,7 @@ pub(crate) use os_impl::macos as platform;
 #[cfg(target_os = "windows")]
 pub(crate) use os_impl::windows as platform;
 
+pub use page_walker::address_space::PageTableMapper;
 pub use error::Error;
 pub use hypervisor::Hypervisor;
 pub use vm::{ProtectionFlags, Vm, VmBuilder};

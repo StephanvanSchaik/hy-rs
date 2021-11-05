@@ -4,6 +4,18 @@ use thiserror::Error;
 /// The `Error` type.
 #[derive(Debug, Error)]
 pub enum Error {
+    /// The PTE was not found.
+    #[error("PTE not found")]
+    PteNotFound,
+    /// The page is not present.
+    #[error("page not present")]
+    PageNotPresent,
+    /// Not implemented.
+    #[error("not implemented")]
+    NotImplemented,
+    /// Out of memory.
+    #[error("out of memory")]
+    OutOfMemory,
     /// The guest address is invalid.
     #[error("invalid guest address")]
     InvalidGuestAddress,
