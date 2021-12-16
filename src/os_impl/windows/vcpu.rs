@@ -110,7 +110,7 @@ impl CpuRegs for Vcpu {
             .map(|value| unsafe { value.Reg64 })
             .collect())
     }
-    
+
     fn set_registers(
         &mut self,
         registers: &[Register],

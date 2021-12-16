@@ -171,9 +171,13 @@ pub struct Vm<'a> {
 impl<'a> Vm<'a> {
     /// Create a virtual CPU with the given vCPU ID.
     pub fn create_vcpu(&mut self, id: usize) -> Result<Vcpu, Error> {
-        Ok(Vcpu {
+        let mut vcpu = Vcpu {
             inner: self.inner.write().unwrap().create_vcpu(id)?,
-        })
+        };
+
+        vcpu.reset()?;
+
+        Ok(vcpu)
     }
 
     /// Allocates guest physical memory into the VM's address space at the given guest address with

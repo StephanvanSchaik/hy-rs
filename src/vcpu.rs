@@ -44,6 +44,58 @@ impl Vcpu {
     pub fn run(&mut self) -> Result<ExitReason, Error> {
         self.inner.run()
     }
+
+    #[cfg(target_arch = "x86_64")]
+    pub fn reset(&mut self) -> Result<(), Error> {
+        // Set up the CPU registers.
+        let registers = vec![
+            (Register::Rip,    0xfff0),
+            (Register::Rflags, 0x0002),
+        ];
+
+        let (registers, values): (Vec<Register>, Vec<u64>) = registers.into_iter().unzip();
+
+        self.set_registers(&registers, &values)?;
+
+        // Set up the code, data and stack segments.
+        let code_segment = Segment {
+            base: 0xffff_0000,
+            limit: 0xffff,
+            selector: 0xf000,
+            segment_type: 0xa,
+            non_system_segment: true,
+            present: true,
+            ..Default::default()
+        };
+
+        let data_segment = Segment {
+            limit: 0xffff,
+            segment_type: 0x3,
+            non_system_segment: true,
+            present: true,
+            ..Default::default()
+        };
+
+        let registers = vec![
+            (SegmentRegister::Cs, code_segment),
+            (SegmentRegister::Ss, data_segment.clone()),
+            (SegmentRegister::Ds, data_segment.clone()),
+            (SegmentRegister::Es, data_segment.clone()),
+            (SegmentRegister::Fs, data_segment.clone()),
+            (SegmentRegister::Gs, data_segment),
+        ];
+
+        let (registers, segments): (Vec<SegmentRegister>, Vec<Segment>) = registers.into_iter().unzip();
+
+        self.set_segment_registers(&registers, &segments)?;
+
+        Ok(())
+    }
+
+    #[cfg(not(target_arch = "x86_64"))]
+    pub fn reset(&mut self) -> Result<(), Error> {
+        Ok(())
+    }
 }
 
 #[cfg(target_arch = "x86_64")]
