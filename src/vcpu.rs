@@ -62,7 +62,9 @@ impl Vcpu {
             base: 0xffff_0000,
             limit: 0xffff,
             selector: 0xf000,
-            segment_type: 0xa,
+            // KVM initializes this to 0xa, but wHV expects 0xb. Check if this is correct and
+            // remove this comment once checked.
+            segment_type: 0xb,
             non_system_segment: true,
             present: true,
             ..Default::default()
