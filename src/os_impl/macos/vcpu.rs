@@ -88,14 +88,14 @@ impl Vcpu {
     pub fn reset(&mut self) -> Result<(), Error> {
         let mut value = self.read_vmcs(Vmcs::CpuBased)?;
         let mut cpu_based = CpuBased::empty();
-        cpu_based |= CpuBased::Hlt;
-        cpu_based |= CpuBased::SecondaryControls;
+        cpu_based |= CpuBased::HLT;
+        cpu_based |= CpuBased::SECONDARY_CONTROLS;
         value |= cpu_based.bits() as u64;
         self.write_vmcs(Vmcs::CpuBased, value)?;
 
         let mut value = self.read_vmcs(Vmcs::CpuBased2)?;
         let mut cpu_based2 = CpuBased2::empty();
-        cpu_based2 |= CpuBased2::UnrestrictedGuest;
+        cpu_based2 |= CpuBased2::UNRESTRICTED_GUEST;
         value |= cpu_based2.bits() as u64;
         self.write_vmcs(Vmcs::CpuBased2, value)?;
 
@@ -374,7 +374,7 @@ impl CpuRegs for Vcpu {
                     // bit and to load the guest as a 64-bit guest.
                     if value & EFER_LME == EFER_LME {
                         value |= EFER_LMA;
-                        flags |= VmEntryControls::GuestIA32e.bits() as u64;
+                        flags |= VmEntryControls::GUEST_IA32E.bits() as u64;
                     }
 
                     self.write_vmcs(Vmcs::VmEntryControls, flags)?;
