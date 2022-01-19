@@ -80,8 +80,7 @@ impl Vm {
         size: usize,
         protection: ProtectionFlags,
     ) -> Result<(), Error> {
-        let mapping = MmapOptions::new()
-            .with_size(size)
+        let mapping = MmapOptions::new(size)
             .map_mut()?;
 
         self.map_physical_memory(

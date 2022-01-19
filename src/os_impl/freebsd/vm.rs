@@ -66,8 +66,7 @@ impl Vm {
             vm_map_memory(self.file.as_raw_fd(), &args)
         }?;
 
-        let mut inner = MmapOptions::new()
-            .with_size(size)
+        let mut inner = MmapOptions::new(size)
             .with_file(Some((self.file.try_clone()?, guest_address)))
             .map_mut()?;
 

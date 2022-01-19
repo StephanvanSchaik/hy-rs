@@ -49,8 +49,7 @@ impl Vm {
         size: usize,
         protection: ProtectionFlags,
     ) -> Result<MmapMut, Error> {
-        let mut inner = MmapOptions::new()
-            .with_size(size)
+        let mut inner = MmapOptions::new(size)
             .map_mut()?;
 
         unsafe {
