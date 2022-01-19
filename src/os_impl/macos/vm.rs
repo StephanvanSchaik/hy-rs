@@ -1,7 +1,6 @@
 use crate::error::Error;
-use crate::mmap::MmapMut;
 use crate::vm::ProtectionFlags;
-use mmap_rs::MmapOptions;
+use mmap_rs::{MmapMut, MmapOptions};
 use rangemap::RangeSet;
 use std::sync::{Arc, RwLock};
 use super::bindings::*;
@@ -71,8 +70,7 @@ impl Vm {
     pub unsafe fn map_physical_memory(
         &mut self,
         guest_address: u64,
-        bytes: *mut std::ffi::c_void,
-        size: usize,
+        mapping: MmapMut,
         protection: ProtectionFlags,
     ) -> Result<(), Error> {
         let mut flags = 0;
@@ -90,9 +88,9 @@ impl Vm {
         }
 
         hv_vm_map(
-            bytes as *const std::ffi::c_void,
+            mapping.as_ptr() as *const std::ffi::c_void,
             guest_address,
-            size,
+            mapping.len(),
             flags,
         ).into_result()?;
 
