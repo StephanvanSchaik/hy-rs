@@ -1,8 +1,6 @@
 use crate::error::Error;
 use crate::vcpu::ExitReason;
 use num_traits::FromPrimitive;
-use rangemap::RangeSet;
-use std::sync::{Arc, RwLock};
 use super::bindings::*;
 
 #[cfg(target_arch = "x86_64")]
@@ -10,7 +8,6 @@ use crate::arch::x86_64::*;
 
 pub struct Vcpu {
     pub(crate) vcpu: hv_vcpuid_t,
-    pub(crate) regions: Arc<RwLock<RangeSet<u64>>>,
 }
 
 #[cfg(target_arch = "x86_64")]
@@ -141,8 +138,8 @@ impl Vcpu {
         self.enable_native_msr(MSR_IA32_SYSCALL_MASK, true)?;
         self.enable_native_msr(MSR_IA32_KERNEL_GS_BASE, true)?;
 
-        self.write_register(hv_x86_reg_t::HV_X86_RIP, 0xfff0);
-        self.write_register(hv_x86_reg_t::HV_X86_RFLAGS, 2);
+        self.write_register(hv_x86_reg_t::HV_X86_RIP, 0xfff0)?;
+        self.write_register(hv_x86_reg_t::HV_X86_RFLAGS, 2)?;
 
         self.write_register(hv_x86_reg_t::HV_X86_CR0, 0)?;
         self.write_register(hv_x86_reg_t::HV_X86_CR4, CR4_VMXE)?;
@@ -182,9 +179,9 @@ impl Vcpu {
 
                     // Ignore EPT violations for regions that are mapped in for the VM, as we are
                     // just seeing the page table walks from the MMU for valid pages.
-                    if self.regions.read().unwrap().contains(&phys_addr) {
+                    /*if self.regions.read().unwrap().contains(&phys_addr) {
                         continue;
-                    }
+                    }*/
 
                     // The virtual CPU just tried accessing some area we did not map.
                     ExitReason::InvalidMemoryAccess {
