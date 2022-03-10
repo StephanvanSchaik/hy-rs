@@ -118,6 +118,16 @@ If the flag is missing, and you are running Mac OS X in a VM, then make sure tha
 If you are running Mac OS X on an AMD CPU either bare metal or in a VM, then the Hypervisor Framework will not work.
 This is because the Hypervisor Framework only supports Intel VMX on Intel-based Macs and offers a rather low-level abstraction to Intel VMX itself, which makes it hard to port to AMD SVM.
 
+In addition, the `com.apple.security.hypervisor` entitlement is required since Mac OS 11.0 to actually use the Hypervisor framework.
+When targeting Mac OS 10.15 or earlier, you will also need the `com.apple.vm.hypervisor` entitlement.
+Please refer to [Apple's documentation](https://developer.apple.com/documentation/bundleresources/entitlements/com_apple_security_hypervisor) for more information.
+
+This repository includes [an example file](./example.entitlements) that can be used as follows to sign the binary with the proper entitlement:
+
+```
+codesign -s - -f --entitlements=example.entitlements ./target/debug/examples/getting-started
+```
+
 # FreeBSD
 
 FreeBSD supports the VMM driver since FreeBSD 10.0.
