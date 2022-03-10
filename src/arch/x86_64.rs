@@ -404,29 +404,48 @@ pub enum Vmcs {
     GuestEsAccessRights   = 0x0000_4814,
     /// The code segment access rights of the guest.
     GuestCsAccessRights   = 0x0000_4816,
+    /// The stack segment access rights of the guest.
     GuestSsAccessRights   = 0x0000_4818,
+    /// The data segment access rights of the guest.
     GuestDsAccessRights   = 0x0000_481a,
+    /// The FS access rights of the guest.
     GuestFsAccessRights   = 0x0000_481c,
+    /// The GS access rights of the guest.
     GuestGsAccessRights   = 0x0000_481e,
+    /// The LDT access rights of the guest.
     GuestLdtrAccessRights = 0x0000_4820,
+    /// The TR access rights of the guest.
     GuestTrAccessRights   = 0x0000_4822,
     Cr0Mask               = 0x0000_6000,
     Cr4Mask               = 0x0000_6002,
     Cr0Shadow             = 0x0000_6004,
     Cr4Shadow             = 0x0000_6006,
     GuestLinearAddress    = 0x0000_640a,
+    /// The CR0 register of the guest.
     GuestCr0              = 0x0000_6800,
+    /// The CR3 register of the guest.
     GuestCr3              = 0x0000_6802,
+    /// The CR4 register of the guest.
     GuestCr4              = 0x0000_6804,
+    /// The ES base address of the guest.
     GuestEsBase           = 0x0000_6806,
+    /// The code segment base address of the guest.
     GuestCsBase           = 0x0000_6808,
+    /// The stack segment base address of the guest.
     GuestSsBase           = 0x0000_680a,
+    /// The data segment base address of the guest.
     GuestDsBase           = 0x0000_680c,
+    /// The FS base address of the guest.
     GuestFsBase           = 0x0000_680e,
+    /// The GS base address of the guest.
     GuestGsBase           = 0x0000_6810,
+    /// The LDT base address of the guest.
     GuestLdtrBase         = 0x0000_6812,
+    /// The TR base address of the guest.
     GuestTrBase           = 0x0000_6814,
+    /// The GDT base address of the guest.
     GuestGdtrBase         = 0x0000_6816,
+    /// The IDT base address of the guest.
     GuestIdtrBase         = 0x0000_6818,
 }
 
