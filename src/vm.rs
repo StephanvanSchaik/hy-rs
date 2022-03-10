@@ -7,7 +7,7 @@ use crate::platform;
 use crate::vcpu::Vcpu;
 use intrusive_collections::intrusive_adapter;
 use intrusive_collections::{SinglyLinkedListLink, SinglyLinkedList};
-use mmap_rs::MmapMut;
+use mmap_rs::{MmapMut, MmapOptions};
 pub use page_walker::address_space::PageTableMapper;
 use rangemap::RangeMap;
 use std::collections::HashMap;
@@ -32,6 +32,8 @@ pub struct PageAllocator<'a> {
     physical_ranges: RangeMap<u64, u64>,
     /// The memory segments.
     segments: HashMap<u64, Box<[PageInfo]>>,
+    /// The size of a page.
+    page_size: usize,
 }
 
 impl<'a> Drop for PageAllocator<'a> {
@@ -48,6 +50,7 @@ impl<'a> PageAllocator<'a> {
             page_info_ranges: RangeMap::new(),
             physical_ranges: RangeMap::new(),
             segments: HashMap::new(),
+            page_size: MmapOptions::page_size().1,
         }
     }
 
@@ -68,7 +71,7 @@ impl<'a> PageAllocator<'a> {
             .expect("page info range must have been present");
 
         let index = (offset - range.start) / std::mem::size_of::<PageInfo>();
-        let guest_address = *guest_address + (index as u64) * 4096;
+        let guest_address = *guest_address + (index as u64) * self.page_size as u64;
 
         Some(guest_address)
     }
@@ -78,7 +81,7 @@ impl<'a> PageAllocator<'a> {
         let (range, _) = self.physical_ranges
             .get_key_value(&phys_addr)
             .expect("physical range must have been present");
-        let index = ((phys_addr - range.start) / 4096) as usize;
+        let index = ((phys_addr - range.start) / self.page_size as u64) as usize;
 
         let segment = self.segments
             .get(&range.start)
@@ -92,7 +95,7 @@ impl<'a> PageAllocator<'a> {
     pub fn add_range(&mut self, range: Range<u64>) -> Result<(), Error> {
         let mut page_infos = vec![];
 
-        for _ in range.clone().step_by(4096) {
+        for _ in range.clone().step_by(self.page_size) {
             page_infos.push(PageInfo {
                 link: SinglyLinkedListLink::new(),
             });
