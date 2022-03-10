@@ -586,3 +586,15 @@ impl CpuRegs for Vcpu {
         Ok(())
     }
 }
+
+#[cfg(target_arch = "aarch64")]
+impl Vcpu {
+    /// Resets the CPU to default state.
+    pub fn reset(&mut self) -> Result<(), Error> {
+        Ok(())
+    }
+
+    pub fn run(&mut self) -> Result<ExitReason, Error> {
+        Ok(ExitReason::Unknown)
+    }
+}
