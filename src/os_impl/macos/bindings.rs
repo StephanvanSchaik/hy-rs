@@ -45,6 +45,28 @@ pub const HV_MEMORY_EXEC:  hv_memory_flags_t = 1 << 2;
 pub type hv_vcpuid_t = c_uint;
 pub const HV_VCPU_DEFAULT: u64 = 0;
 
+pub type hv_exit_reason_t = u32;
+pub type hv_exception_syndrome_t = u64;
+pub type hv_exception_address_t = u64;
+pub type hv_ipa_t = u64;
+
+#[repr(C)]
+#[derive(Clone, Copy, Debug)]
+pub struct hv_vcpu_exit_exception_t {
+    pub syndrome: hv_exception_syndrome_t,
+    pub virtual_address: hv_exception_address_t,
+    pub physical_address: hv_ipa_t,
+}
+
+#[repr(C)]
+#[derive(Clone, Copy, Debug)]
+pub struct hv_vcpu_exit_t {
+    pub reason: hv_exit_reason_t,
+    pub exception: hv_vcpu_exit_exception_t,
+}
+
+pub type hv_vcpu_config_t = *mut core::ffi::c_void;
+
 extern {
     pub fn hv_vm_create(flags: hv_vm_options_t) -> hv_return_t;
     pub fn hv_vm_destroy() -> hv_return_t;
@@ -53,9 +75,22 @@ extern {
     pub fn hv_vm_unmap(gpa: hv_gpaddr_t, size: usize) -> hv_return_t;
     pub fn hv_vm_protect(gpa: hv_gpaddr_t, size: usize, flags: hv_memory_flags_t) -> hv_return_t;
 
-    pub fn hv_vcpu_create(vcpu: *mut hv_vcpuid_t, flags: hv_vm_options_t) -> hv_return_t;
     pub fn hv_vcpu_destroy(vcpu: hv_vcpuid_t) -> hv_return_t;
     pub fn hv_vcpu_run(vcpu: hv_vcpuid_t) -> hv_return_t;
+}
+
+#[cfg(target_arch = "x86_64")]
+extern {
+    pub fn hv_vcpu_create(vcpu: *mut hv_vcpuid_t, flags: hv_vm_options_t) -> hv_return_t;
+}
+
+#[cfg(target_arch = "aarch64")]
+extern {
+    pub fn hv_vcpu_create(
+        vcpu: *mut hv_vcpuid_t,
+        exit: *mut *const hv_vcpu_exit_t,
+        config: *const hv_vcpu_config_t,
+    ) -> hv_return_t;
 }
 
 #[cfg(target_arch = "x86_64")]

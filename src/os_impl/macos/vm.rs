@@ -31,11 +31,31 @@ pub struct Vm {
 }
 
 impl Vm {
+    #[cfg(target_arch = "x86_64")]
     pub fn create_vcpu(&mut self, _id: usize) -> Result<Vcpu, Error> {
         let mut vcpu = 0;
 
         unsafe {
             hv_vcpu_create(&mut vcpu, HV_VCPU_DEFAULT)
+        }.into_result()?;
+
+        let mut vcpu = Vcpu {
+            vcpu,
+        };
+
+        vcpu.reset()?;
+
+        Ok(vcpu)
+    }
+
+    #[cfg(target_arch = "aarch64")]
+    pub fn create_vcpu(&mut self, _id: usize) -> Result<Vcpu, Error> {
+        let mut vcpu = 0;
+        let mut vcpu_exit: *const hv_vcpu_exit_t = core::ptr::null_mut();
+        let vcpu_config: hv_vcpu_config_t = core::ptr::null_mut();
+
+        unsafe {
+            hv_vcpu_create(&mut vcpu, &mut vcpu_exit, &vcpu_config)
         }.into_result()?;
 
         let mut vcpu = Vcpu {
