@@ -15,6 +15,7 @@ pub const HV_BUSY:         hv_return_t = 0xfae94002;
 pub const HV_BAD_ARGUMENT: hv_return_t = 0xfae94003;
 pub const HV_NO_RESOURCES: hv_return_t = 0xfae94005;
 pub const HV_NO_DEVICE:    hv_return_t = 0xfae94006;
+pub const HV_DENIED:       hv_return_t = 0xfae94007;
 pub const HV_UNSUPPORTED:  hv_return_t = 0xfae9400f;
 
 pub trait IntoResult {
